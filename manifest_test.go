@@ -568,8 +568,9 @@ func (m *ManifestTestSuite) TestManifestEntriesV1() {
 }
 
 func (m *ManifestTestSuite) TestReadManifestListV1() {
-	list, err := ReadManifestList(&m.v1ManifestList)
+	manifestFiles, err := ReadManifestList(&m.v1ManifestList)
 	m.Require().NoError(err)
+	list := manifestFiles.AllManifests
 
 	m.Len(list, 1)
 	m.Equal(1, list[0].Version())
@@ -598,8 +599,9 @@ func (m *ManifestTestSuite) TestReadManifestListV1() {
 }
 
 func (m *ManifestTestSuite) TestReadManifestListV2() {
-	list, err := ReadManifestList(&m.v2ManifestList)
+	manifestFiles, err := ReadManifestList(&m.v2ManifestList)
 	m.Require().NoError(err)
+	list := manifestFiles.AllManifests
 
 	m.Equal("/home/iceberg/warehouse/nyc/taxis_partitioned/metadata/0125c686-8aa6-4502-bdcc-b6d17ca41a3b-m0.avro", list[0].FilePath())
 	m.Len(list, 1)

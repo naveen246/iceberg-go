@@ -18,9 +18,12 @@
 package table
 
 import (
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/google/uuid"
+	"math"
 	"strconv"
 
 	"github.com/apache/iceberg-go"
@@ -179,7 +182,11 @@ func (s Snapshot) Manifests(fio io.IO) ([]iceberg.ManifestFile, error) {
 			return nil, fmt.Errorf("could not open manifest file: %w", err)
 		}
 		defer f.Close()
-		return iceberg.ReadManifestList(f)
+		manifestFiles, err := iceberg.ReadManifestList(f)
+		if err != nil {
+			return nil, err
+		}
+		return manifestFiles.AllManifests, nil
 	}
 
 	return nil, nil
@@ -193,4 +200,57 @@ type MetadataLogEntry struct {
 type SnapshotLogEntry struct {
 	SnapshotID  int64 `json:"snapshot-id"`
 	TimestampMs int64 `json:"timestamp-ms"`
+}
+
+func generateSnapshotID() uint64 {
+	u1 := uuid.New()
+	l1 := binary.BigEndian.Uint64(u1[:8])
+	l2 := binary.BigEndian.Uint64(u1[8:])
+
+	return (l1 ^ l2) & math.MaxUint64
+}
+
+type PendingUpdate interface {
+	Apply() PendingUpdate
+	Commit()
+	UpdateEvent() any
+}
+
+type SnapshotUpdate interface {
+	PendingUpdate
+	Set(property string, value string) SnapshotUpdate
+	DeleteWith(deleteFn func(string)) SnapshotUpdate
+	StageOnly() SnapshotUpdate
+	ToBranch(branch string) SnapshotUpdate
+}
+
+type SnapshotProducer struct {
+}
+
+func (s *SnapshotProducer) Apply() PendingUpdate {
+	return s
+}
+
+func (s *SnapshotProducer) Commit() {
+
+}
+
+func (s *SnapshotProducer) UpdateEvent() any {
+
+}
+
+func (s *SnapshotProducer) Set(property string, value string) SnapshotUpdate {
+
+}
+
+func (s *SnapshotProducer) DeleteWith(deleteFn func(string)) SnapshotUpdate {
+
+}
+
+func (s *SnapshotProducer) StageOnly() SnapshotUpdate {
+
+}
+
+func (s *SnapshotProducer) ToBranch(branch string) SnapshotUpdate {
+
 }

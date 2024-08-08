@@ -199,6 +199,10 @@ func (m *manifestFileV1) HasExistingFiles() bool {
 	return m.ExistingFilesCount == nil || *m.ExistingFilesCount > 0
 }
 
+func (m *manifestFileV1) HasDeletedFiles() bool {
+	return m.DeletedFilesCount == nil || *m.DeletedFilesCount > 0
+}
+
 func (m *manifestFileV1) SequenceNum() int64    { return 0 }
 func (m *manifestFileV1) MinSequenceNum() int64 { return 0 }
 func (m *manifestFileV1) KeyMetadata() []byte   { return m.Key }
@@ -359,6 +363,10 @@ func (m *manifestFileV2) HasExistingFiles() bool {
 	return m.ExistingFilesCount > 0
 }
 
+func (m *manifestFileV2) HasDeletedFiles() bool {
+	return m.DeletedFilesCount > 0
+}
+
 func (m *manifestFileV2) FetchEntries(fs iceio.IO, discardDeleted bool) ([]ManifestEntry, error) {
 	return fetchManifestEntries(m, fs, discardDeleted)
 }
@@ -480,6 +488,8 @@ type ManifestFile interface {
 	HasAddedFiles() bool
 	// HasExistingFiles returns true if ExistingDataFiles > 0 or if it was null.
 	HasExistingFiles() bool
+	// HasDeletedFiles returns true if DeletedDataFiles > 0 or if it was null
+	HasDeletedFiles() bool
 	// FetchEntries reads the manifest list file to fetch the list of
 	// manifest entries using the provided file system IO interface.
 	// If discardDeleted is true, entries for files containing deleted rows
@@ -487,9 +497,15 @@ type ManifestFile interface {
 	FetchEntries(fs iceio.IO, discardDeleted bool) ([]ManifestEntry, error)
 }
 
+type ManifestFiles struct {
+	AllManifests    []ManifestFile
+	DataManifests   []ManifestFile
+	DeleteManifests []ManifestFile
+}
+
 // ReadManifestList reads in an avro manifest list file and returns a slice
 // of manifest files or an error if one is encountered.
-func ReadManifestList(in io.Reader) ([]ManifestFile, error) {
+func ReadManifestList(in io.Reader) (*ManifestFiles, error) {
 	dec, err := ocf.NewDecoder(in)
 	if err != nil {
 		return nil, err
@@ -510,7 +526,9 @@ func ReadManifestList(in io.Reader) ([]ManifestFile, error) {
 		}
 	}
 
-	out := make([]ManifestFile, 0)
+	allManifests := make([]ManifestFile, 0)
+	dataManifests := make([]ManifestFile, 0)
+	deleteManifests := make([]ManifestFile, 0)
 	for dec.HasNext() {
 		var file ManifestFile
 		if string(dec.Metadata()["format-version"]) == "2" {
@@ -531,10 +549,22 @@ func ReadManifestList(in io.Reader) ([]ManifestFile, error) {
 			file = file.(*fallbackManifestFileV1).toManifest()
 		}
 
-		out = append(out, file)
+		allManifests = append(allManifests, file)
+		switch file.ManifestContent() {
+		case ManifestContentData:
+			dataManifests = append(dataManifests, file)
+		case ManifestContentDeletes:
+			deleteManifests = append(deleteManifests, file)
+		}
 	}
 
-	return out, dec.Error()
+	manifestFiles := &ManifestFiles{
+		AllManifests:    allManifests,
+		DataManifests:   dataManifests,
+		DeleteManifests: deleteManifests,
+	}
+
+	return manifestFiles, dec.Error()
 }
 
 // ManifestEntryStatus defines constants for the entry status of
@@ -867,7 +897,7 @@ type DataFile interface {
 	// NaNValueCounts is a mapping from column id to the number of NaN
 	// values in the column.
 	NaNValueCounts() map[int]int64
-	// DistictValueCounts is a mapping from column id to the number of
+	// DistinctValueCounts is a mapping from column id to the number of
 	// distinct values in the column. Distinct counts must be derived
 	// using values in the file by counting or using sketches, but not
 	// using methods like merging existing distinct counts.

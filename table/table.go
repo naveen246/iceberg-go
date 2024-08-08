@@ -110,3 +110,11 @@ func NewFromLocation(ident Identifier, metalocation string, fsys io.IO) (*Table,
 	}
 	return New(ident, meta, metalocation, fsys), nil
 }
+
+type TableOperations interface {
+	Current() Metadata
+	Refresh() Metadata
+	Commit(base Metadata, metadata Metadata)
+	MetadataFileLocation(fileName string) string
+	Temp(uncommittedMetadata Metadata) TableOperations
+}
